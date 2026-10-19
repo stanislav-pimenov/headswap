@@ -197,7 +197,13 @@ class Tcp6Listener(
             } catch (_: IOException) {
                 return   // сервер закрыт
             }
-            onAccept(chan, s)
+            try {
+                onAccept(chan, s)
+            } catch (e: Exception) {
+                // ошибка опций сокета (например, SO_SNDBUF) не должна убивать приём всего канала
+                WLog.ev(WLog.TCP, "accept-fail", "chan" to chanName(chan), "err" to e.javaClass.simpleName)
+                quiet { s.close() }
+            }
         }
     }
 

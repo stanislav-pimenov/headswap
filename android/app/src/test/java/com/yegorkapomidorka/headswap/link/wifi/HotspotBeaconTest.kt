@@ -58,6 +58,15 @@ class HotspotBeaconTest {
     }
 
     @Test
+    fun primeFillsCurrentBeforeStart() {
+        val ap = LanIface("wlan2", v4("192.168.43.1"), 24, v4("192.168.43.255"))
+        val b = HotspotBeacon(ifaces = { listOf(ap) })
+        assertTrue("до prime списка ещё нет", b.current.isEmpty())
+        assertEquals(listOf(ap), b.prime())
+        assertEquals("Tcp6Listener должен видеть подсеть сразу", listOf(ap), b.current)
+    }
+
+    @Test
     fun codec() {
         assertArrayEquals("CarlifeHost".toByteArray(), BeaconCodec.BEACON)
         val probe = """{"carlifehost":"carlife","deviceInfo":{}}""".toByteArray()

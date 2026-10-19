@@ -32,13 +32,24 @@ class CarlifeBtProbe(
     private val onP2pBusy: () -> Unit = {},
     /** Wi-Fi на телефоне выключен (false, Wi-Fi Direct не войдёт) или включён (true) на входе в группу ГУ (главная нить). */
     private val onWifi: (on: Boolean) -> Unit = {},
+    /** Группа Wi-Fi Direct распалась: её адрес телефона больше не актуален (главная нить). */
+    private val onP2pLost: () -> Unit = {},
 ) {
     @Volatile private var running = false
     private val servers = ArrayList<BluetoothServerSocket>()
     private val lock = Any()
     @Volatile private var accepts = 0
     @Volatile private var active: BluetoothSocket? = null
-    private val p2p = P2pJoin(ctx, onBusy = { onP2pBusy() }, onWifi = { on -> onWifi(on) }, onJoined = { ip -> onP2pJoined(ip) }, onLost = { p2pIp = null })
+    private val p2p = P2pJoin(
+        ctx,
+        onBusy = { onP2pBusy() },
+        onWifi = { on -> onWifi(on) },
+        onJoined = { ip -> onP2pJoined(ip) },
+        onLost = {
+            p2pIp = null
+            onP2pLost()
+        },
+    )
     /** Адрес телефона в группе ГУ (после входа) и запрос IP от ГУ: MD_WIFI_IP уходит, когда есть оба. */
     @Volatile private var p2pIp: String? = null
     @Volatile private var ipRequested = false
