@@ -116,8 +116,8 @@ class BridgeService : Service() {
     private var carSeenAt = 0L
     /** В этом ожидании выбранная машина оказалась подключена по Bluetooth. Только главная нить. */
     private var carBtNear = false
-    /** 6/6 получены, сессия вот-вот стартует: запрос сети машины уже не нужен. Только главная нить. */
-    private var sixReady = false
+    /** 6/6 получены, сессия вот-вот стартует: запрос сети машины уже не нужен. Пишет нить слушателя, читает главная. */
+    @Volatile private var sixReady = false
     /** Ожидание сознательно прерывается ради нового маяка в сети машины: ветка отказа в startTcp6 это не сдача. Только главная нить. */
     private var restartingForCarNet = false
     private val carNetTick = Runnable { requestCarNet() }
@@ -133,6 +133,9 @@ class BridgeService : Service() {
     private var btHintShown = false
     /** Висит уведомление «включите Wi-Fi» (Wi-Fi Direct упёрся в выключенный Wi-Fi). Только главная нить. */
     private var wifiOffShown = false
+    /** Автостарт упёрся в ACCESS_LOCAL_NETWORK: ждём, пока пользователь выдаст его, и пробуем снова. Только главная нить. */
+    private var permissionWaiting = false
+    private val permissionTick = Runnable { retryAfterLanPermission() }
     private val btHintTick = Runnable { checkBtHint() }
     private var wakeLock: PowerManager.WakeLock? = null
     private val audioDiag = AudioDiag()
@@ -144,6 +147,7 @@ class BridgeService : Service() {
             onTargetInfo = { mac -> main.post { onBtTargetInfo(mac) } },
             onP2pBusy = { main.post { onP2pBusy() } },
             onWifi = { on -> main.post { onP2pWifi(on) } },
+            onP2pLost = { main.post { onP2pLost() } },
         )
     }
     /** Автозапуск пропущен из-за неподключённой службы спецвозможностей: RETRY запустит его, когда она появится. */
@@ -183,6 +187,7 @@ class BridgeService : Service() {
             autoStarted = false
             cancelAutoOff()
             cancelHint()
+            cancelPermissionWait()
             stopCarNet(CarNetEvent.STOP, "stop")
             CarLifeState.wireless = null
             btProbe.stop("стоп")
@@ -248,6 +253,7 @@ class BridgeService : Service() {
                 WLog.ev(WLog.TRIGGER, "manual-mark", "why" to "waiting")
                 return START_NOT_STICKY
             }
+            cancelPermissionWait()
             wifiBMode = true
             autoStarted = false      // ручной запуск: уход машины по Bluetooth его не гасит
             stopRequested = false
@@ -429,6 +435,22 @@ class BridgeService : Service() {
         CarLifeState.wireless = getString(R.string.wl_state_p2p_busy)
     }
 
+    /**
+     * Группа Wi-Fi Direct распалась: Tcp6Listener уже мог запомнить её адрес (peer), а новая группа выдаст другой.
+     * Перезапускаем слушатель, иначе подключения новой группы будут отклонены как «peer».
+     */
+    private fun onP2pLost() {
+        if (!wifiBMode || stopRequested || session != null || sixReady || !linkWaiting) return
+        val l = pendingTcp6
+        if (l == null) {
+            main.postDelayed({ onP2pLost() }, 300)
+            return
+        }
+        restartingForCarNet = true
+        WLog.ev(WLog.LINK, "rearm", "after" to "p2p-lost")
+        l.abort()
+    }
+
     private fun onBtAccept() {
         if (!wifiBMode || stopRequested) return
         btAcceptsThisWait++
@@ -455,7 +477,8 @@ class BridgeService : Service() {
 
     private fun onCarNetUnavailable(reason: String) {
         if (wifiDirectCar) return
-        if (autoMode && !hintShown) showWifiHint()      // сети машины не будет: пусть человек подключит Wi-Fi сам
+        // сети машины не будет: пусть человек подключит Wi-Fi сам (в ручном режиме тоже, иначе он ждёт до 10 минут)
+        if (!hintShown) showWifiHint()
     }
 
     private fun onCarNetLost() {
@@ -476,6 +499,7 @@ class BridgeService : Service() {
             return
         }
         cancelAutoOff()
+        cancelPermissionWait()
         autoMode = true
         autoStarted = true
         if (session != null) {
@@ -486,6 +510,20 @@ class BridgeService : Service() {
             WLog.ev(WLog.TRIGGER, "auto-mark", "why" to "waiting")      // всплеск ACL: ожидание уже идёт
             return
         }
+        // без ACCESS_LOCAL_NETWORK (Android 17+) входящий TCP режется молча: просим открыть приложение и ждём
+        if (!lanPermissionReady()) {
+            permissionWaiting = true
+            CarLifeState.wireless = getString(R.string.wl_state_lan_permission)
+            showLanPermissionHint()
+            main.removeCallbacks(permissionTick)
+            main.postDelayed(permissionTick, PERMISSION_RETRY_MS)
+            WLog.ev(WLog.TRIGGER, "auto-wait", "why" to "local-network")
+            return
+        }
+        startAutoWait()
+    }
+
+    private fun startAutoWait() {
         hintShown = false
         wifiBMode = true
         stopRequested = false
@@ -493,6 +531,47 @@ class BridgeService : Service() {
         startWifiB()
         btProbe.start()
         WLog.ev(WLog.TRIGGER, "auto-start")
+    }
+
+    /** ACCESS_LOCAL_NETWORK выдали, пока машина ещё рядом: продолжаем автоожидание без нового ACL. */
+    private fun retryAfterLanPermission() {
+        if (!permissionWaiting || !autoMode || stopRequested || wifiBMode || session != null) {
+            permissionWaiting = false
+            return
+        }
+        if (!lanPermissionReady()) {
+            main.postDelayed(permissionTick, PERMISSION_RETRY_MS)
+            return
+        }
+        permissionWaiting = false
+        getSystemService(NotificationManager::class.java).cancel(LAN_PERM_NOTIF_ID)
+        WLog.ev(WLog.TRIGGER, "auto-start", "after" to "permission")
+        startAutoWait()
+    }
+
+    private fun lanPermissionReady(): Boolean = NetProbe.localNetworkGranted(this) != "denied"
+
+    private fun showLanPermissionHint() {
+        val open = PendingIntent.getActivity(
+            this, 6, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_headswap)
+            .setContentTitle(getString(R.string.wl_lan_perm_title))
+            .setContentText(getString(R.string.wl_lan_perm_text))
+            .setStyle(Notification.BigTextStyle().bigText(getString(R.string.wl_lan_perm_text)))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(LAN_PERM_NOTIF_ID, n)
+        WLog.ev(WLog.TRIGGER, "lan-permission-hint")
+    }
+
+    private fun cancelPermissionWait() {
+        permissionWaiting = false
+        main.removeCallbacks(permissionTick)
+        getSystemService(NotificationManager::class.java).cancel(LAN_PERM_NOTIF_ID)
     }
 
     /** ACL_DISCONNECTED выбранной машины: гасим не сразу (всплески ACL у ГУ), а через [AUTO_OFF_DEBOUNCE_MS]. */
@@ -503,6 +582,7 @@ class BridgeService : Service() {
             finish()
             return
         }
+        cancelPermissionWait()
         autoOff.arm()
         main.removeCallbacks(autoOffTick)
         main.postDelayed(autoOffTick, AUTO_OFF_DEBOUNCE_MS)
@@ -518,6 +598,7 @@ class BridgeService : Service() {
     private fun applyAutoOff() {
         autoMode = false
         cancelHint()
+        cancelPermissionWait()
         if (session != null) {
             // сессия идёт (воздух: ГУ может держать Wi-Fi дольше Bluetooth; кабель - не наше дело); после её конца ожидание не возобновим
             WLog.ev(WLog.TRIGGER, "auto-off", "session" to true)
@@ -619,9 +700,9 @@ class BridgeService : Service() {
         WLog.ev(WLog.TRIGGER, "wifi-off-hint")
     }
 
-    /** 30 с ожидания в авторежиме, а 6/6 нет: ГУ, возможно, не в сети телефона. Нажатие открывает панель Wi-Fi. */
+    /** 6/6 нет, а сеть машины не нашлась: ГУ, возможно, не в сети телефона. Нажатие открывает панель Wi-Fi. */
     private fun showWifiHint() {
-        if (!autoMode || !wifiBMode || !linkWaiting || session != null || hintShown) return
+        if (!wifiBMode || !linkWaiting || session != null || hintShown) return
         if (wifiDirectCar) return      // Wi-Fi Direct: телефон сам входит в группу ГУ, Wi-Fi подключать не нужно
         // сеть машины запрашивается или уже получена: человеку подключать Wi-Fi не нужно, подсказка придёт по onUnavailable
         if (carNetBusy) return
@@ -695,10 +776,16 @@ class BridgeService : Service() {
             val result: Any = try {
                 val peerOk: (java.net.InetAddress) -> Boolean =
                     if (beacon == null) { _ -> true } else { a -> beacon.current.any { it.contains(a) } || btProbe.ownsPeer(a) }
+                // подсети маяка должны быть известны до accept: ГУ может подключиться сразу после bind
+                beacon?.prime()
                 val l = Tcp6Listener(java.net.InetAddress.getByName(bind), peerOk = peerOk).open()
                 pendingTcp6 = l
                 beacon?.start()
-                l.await(waitMs, "$kind $bind").also { hotspotPeer = beacon != null && l.peerAddress?.let { !btProbe.ownsPeer(it) } == true }
+                l.await(waitMs, "$kind $bind").also {
+                    // сразу, до pendingTcp6 = null: иначе onP2pLost может принять готовый слушатель за старый и закрыть сокеты
+                    sixReady = true
+                    hotspotPeer = beacon != null && l.peerAddress?.let { !btProbe.ownsPeer(it) } == true
+                }
             } catch (e: Exception) {
                 e
             } finally {
@@ -984,6 +1071,7 @@ class BridgeService : Service() {
     }
 
     private fun finish() {
+        cancelPermissionWait()
         stopCarNet(CarNetEvent.STOP, "finish")
         CarLifeState.running = false
         try {
@@ -1005,6 +1093,7 @@ class BridgeService : Service() {
         autoMode = false
         cancelAutoOff()
         cancelHint()
+        cancelPermissionWait()
         stopCarNet(CarNetEvent.DESTROY, "destroy")
         pendingTcp6?.abort()
         btProbe.stop("сервис уничтожен")
@@ -1033,6 +1122,9 @@ class BridgeService : Service() {
         private const val USB_TO_AIR_NOTIF_MS = 60_000L
         private const val BT_HINT_NOTIF_ID = 3
         private const val WIFI_OFF_NOTIF_ID = 4
+        private const val LAN_PERM_NOTIF_ID = 6
+        /** Автостарт без ACCESS_LOCAL_NETWORK: как часто перепроверять разрешение (машина всё ещё рядом). */
+        private const val PERMISSION_RETRY_MS = 5_000L
 
         /** Сервис создан и не уничтожен (один процесс): ресиверу ACL незачем будить пустой сервис ради отбоя. */
         @Volatile var alive = false

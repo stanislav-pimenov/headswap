@@ -133,13 +133,37 @@ class P2pJoin(
         main.postDelayed(retry, DISCOVER_RETRY_MS)
     }
 
-    /** Wi-Fi включили, пока ждали: P2P поднялся, входим в группу. */
+    /** Wi-Fi выключили/включили: ждём включения или входим в группу заново (в том числе после потери уже собранной). */
     private fun onP2pState(enabled: Boolean) {
+        if (target == null) return
+        if (!enabled) {
+            if (waitingWifi) return
+            waitingWifi = true
+            gen++                  // колбэки прошлой попытки больше не должны ничего менять
+            main.removeCallbacks(timeout)
+            main.removeCallbacks(retry)
+            if (joinedIp != null) {
+                WLog.ev(WLog.P2P, "lost", "why" to "wifi-off")
+                joinedIp = null
+                iface = null
+                formed = false
+                connecting = false
+                onLost()
+            }
+            WLog.ev(WLog.P2P, "wifi-off")
+            AppLog.i("Wi-Fi Direct: Wi-Fi выключен, жду включения")
+            onWifi(false)
+            return
+        }
         val m = mgr ?: return
         val ch = channel ?: return
         val t = target ?: return
-        if (!enabled || !waitingWifi) return
+        if (!waitingWifi) return
         waitingWifi = false
+        discoverFails = 0
+        discoverRuns = 0
+        busyReported = false
+        connecting = false
         WLog.ev(WLog.P2P, "wifi-on")
         AppLog.i("Wi-Fi Direct: Wi-Fi включён, вхожу в группу ГУ")
         onWifi(true)

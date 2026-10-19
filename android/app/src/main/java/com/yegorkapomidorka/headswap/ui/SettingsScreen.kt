@@ -585,28 +585,35 @@ class SettingsSectionScreen(host: MainActivity, val section: SettingsSection) : 
     private fun carBtGranted() =
         Build.VERSION.SDK_INT < 31 || ctx.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
-    /** На Android 12+ перед выбором просим BLUETOOTH_CONNECT (имя устройства, доставка ACL); отказ выбор не блокирует. */
+    /**
+     * Что спросить для беспровода: ACCESS_LOCAL_NETWORK (Android 17+, иначе LAN режется молча), BLUETOOTH_CONNECT
+     * (имя и ACL машины) и «Устройства поблизости» (Wi-Fi Direct). Спрашиваем и при привязке машины: автостарт по ACL
+     * не может показать диалог, а без LAN он будет ждать вхолостую.
+     */
+    private fun wirelessPermissions(): List<String> {
+        val ask = ArrayList<String>()
+        if (Build.VERSION.SDK_INT >= 37 && NetProbe.localNetworkGranted(ctx) != "granted") ask += Manifest.permission.ACCESS_LOCAL_NETWORK
+        if (!carBtGranted()) ask += Manifest.permission.BLUETOOTH_CONNECT
+        val p2p = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.NEARBY_WIFI_DEVICES else Manifest.permission.ACCESS_FINE_LOCATION
+        if (ctx.checkSelfPermission(p2p) != PackageManager.PERMISSION_GRANTED) ask += p2p
+        return ask
+    }
+
+    /** Перед выбором машины просим всё нужное для автостарта; отказ выбор не блокирует, но LAN-доступ предупредит. */
     private fun onCarPick() {
-        if (!carBtGranted()) {
+        val ask = wirelessPermissions()
+        if (ask.isNotEmpty()) {
             wlAwaitingCarPermission = true
-            host.requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), REQ_CAR_BT)
+            host.requestPermissions(ask.toTypedArray(), REQ_CAR_BT)
             return
         }
         CarPairing.start(host)
     }
 
-    /**
-     * На Android 17+ без ACCESS_LOCAL_NETWORK LAN режется молча: сначала спрашиваем, старт - в onPermissionResult.
-     * BLUETOOTH_CONNECT (Android 12+) и «Устройства поблизости» (Wi-Fi Direct) - для ветки A, без них беспровод всё равно стартует.
-     */
+    /** На Android 17+ без ACCESS_LOCAL_NETWORK LAN режется молча: сначала спрашиваем, старт - в onPermissionResult. */
     private fun onWirelessStart() {
         wlNoPermission?.visibility = View.GONE
-        val ask = ArrayList<String>()
-        if (Build.VERSION.SDK_INT >= 37 && NetProbe.localNetworkGranted(ctx) != "granted") ask += Manifest.permission.ACCESS_LOCAL_NETWORK
-        if (!carBtGranted()) ask += Manifest.permission.BLUETOOTH_CONNECT
-        // ветка A: вход в Wi-Fi Direct-группу ГУ; без него беспровод стартует, но только веткой B
-        val p2p = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.NEARBY_WIFI_DEVICES else Manifest.permission.ACCESS_FINE_LOCATION
-        if (ctx.checkSelfPermission(p2p) != PackageManager.PERMISSION_GRANTED) ask += p2p
+        val ask = wirelessPermissions()
         if (ask.isNotEmpty()) {
             wlAwaitingPermission = true
             host.requestPermissions(ask.toTypedArray(), REQ_LOCAL_NETWORK)

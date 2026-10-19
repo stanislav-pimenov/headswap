@@ -17,4 +17,7 @@
     <string name="wl_usb_to_air_title">Кабель отключён</string>
     <string name="wl_usb_to_air_text">Машина рядом по Bluetooth, подключаюсь по воздуху.</string>
     <string name="wl_state_gave_up">машина не подключилась за %1$d мин</string>
+    <string name="wl_state_lan_permission">нужно разрешение «Локальная сеть»</string>
+    <string name="wl_lan_perm_title">Разрешите доступ к локальной сети</string>
+    <string name="wl_lan_perm_text">Без него машина не подключится по Wi-Fi. Откройте Headswap и разрешите доступ в разделе «Беспровод».</string>
 </resources>

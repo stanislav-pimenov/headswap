@@ -129,6 +129,12 @@ class HotspotBeacon(
     @Volatile var current: List<LanIface> = emptyList()
         private set
 
+    /**
+     * Заполнить [current] до открытия Tcp6Listener. Иначе первое подключение ГУ может прийти раньше первого
+     * refresh() в потоке маяка, и слушатель отклонит его как «subnet» (пир ещё не в списке подсетей).
+     */
+    fun prime(): List<LanIface> = refresh()
+
     fun start() {
         if (!running.compareAndSet(false, true)) return
         sender = Thread({ sendLoop() }, "wl-beacon").apply { isDaemon = true; start() }

@@ -17,4 +17,7 @@
     <string name="wl_usb_to_air_title">Cable disconnected</string>
     <string name="wl_usb_to_air_text">The car is near over Bluetooth, connecting wirelessly.</string>
     <string name="wl_state_gave_up">the car did not connect within %1$d min</string>
+    <string name="wl_state_lan_permission">local network permission required</string>
+    <string name="wl_lan_perm_title">Allow local network access</string>
+    <string name="wl_lan_perm_text">Without it the car cannot connect over Wi-Fi. Open Headswap and allow access in Settings → Wireless.</string>
 </resources>
