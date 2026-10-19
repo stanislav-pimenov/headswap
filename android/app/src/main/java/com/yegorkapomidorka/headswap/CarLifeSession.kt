@@ -42,6 +42,8 @@ class SessionConfig(
     val metaNavi: Boolean = true,
     /** Поле 6 NAVI_NEXT_TURN_INFO: иконка и/или time. */
     val naviField6: NaviField6 = NaviField6.BOTH,
+    /** Потолок битрейта перекодирования, бит/с (0 = потолок видео-режима). */
+    val maxBitrateBps: Int = 0,
 )
 
 /**
@@ -67,7 +69,9 @@ class CarLifeSession(
 
     /** Воздух (6 сокетов): своя лесенка битрейта, PAUSE-keepalive чаще, WL-строки видео. USB и tcp-debug - как было. */
     private val air = transport.caps == TransportCaps.TCP6
-    private val bitratePolicy = BitratePolicy(mode.bitrate, profile = if (air) BitrateProfile.WIFI else BitrateProfile.USB)
+    /** Потолок битрейта сессии: потолок режима, урезанный настройкой машины (0 = не урезать). */
+    private val videoBitrate = if (cfg.maxBitrateBps > 0) minOf(mode.bitrate, cfg.maxBitrateBps) else mode.bitrate
+    private val bitratePolicy = BitratePolicy(videoBitrate, profile = if (air) BitrateProfile.WIFI else BitrateProfile.USB)
     @Volatile private var vwIdrCutMs = NEVER_MS
     private val thermalThrottle = ThermalThrottle()
     private var thermalStatus = 0                       // только нить cl-sched
@@ -525,7 +529,7 @@ class CarLifeSession(
                 cur.requestKeyFrame()
                 return
             }
-            val s = VideoSource(pendingW, pendingH, pendingFps, if (air) bitratePolicy.current else mode.bitrate, this)
+            val s = VideoSource(pendingW, pendingH, pendingFps, if (air) bitratePolicy.current else videoBitrate, this)
             s.banner = text
             try {
                 s.start()

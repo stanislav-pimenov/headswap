@@ -41,6 +41,11 @@ class AaPrefs(ctx: Context) {
         get() = AaDensity.parse(sp.getInt("aaDensity", AaDensity.AUTO))
         set(v) = sp.edit().putInt("aaDensity", AaDensity.parse(v)).apply()
 
+    /** Потолок битрейта перекодирования, бит/с (0 = потолок видео-режима). Читается один раз на подключение. */
+    var maxBitrateBps: Int
+        get() = sp.getInt("maxBitrateBps", 0).coerceAtLeast(0)
+        set(v) = sp.edit().putInt("maxBitrateBps", v.coerceAtLeast(0)).apply()
+
     /** Частота кадров (имя FpsSetting, по умолчанию Авто). Читается один раз на подключение. */
     var fpsSetting: FpsSetting
         get() = FpsSetting.parse(sp.getString("fpsSetting", FpsSetting.DEFAULT.name))
@@ -58,7 +63,7 @@ class AaPrefs(ctx: Context) {
 
     /** Текущие значения настроек, которые выставляет выбор машины. */
     val carSettings: CarSettings
-        get() = CarSettings(transcode, videoMode, aaDensity, fpsSetting, musicRate)
+        get() = CarSettings(transcode, videoMode, aaDensity, fpsSetting, musicRate, maxBitrateBps)
 
     /** Выбрать машину и записать её рекомендованные настройки. */
     fun applyCar(p: CarPreset) {
@@ -70,6 +75,7 @@ class AaPrefs(ctx: Context) {
             .putInt("aaDensity", s.aaDensity)
             .putString("fpsSetting", s.fps.name)
             .putString("musicRate", s.musicRate.name)
+            .putInt("maxBitrateBps", s.maxBitrateBps)
             .apply()
     }
 

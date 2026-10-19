@@ -51,7 +51,7 @@
 | Volkswagen ID.Unyx | — |
 | Volkswagen Lamando L | — |
 | Volkswagen Sagitar 2021–2022, дорестайл | 2.0 |
-| Volkswagen T-Roc рестайлинг 2026 | — |
+| Volkswagen T-Roc рестайлинг 2026 (ГУ 2GD035869A, Desay SV, 800×480, CarLife только по USB) | — |
 | Volkswagen Tharu XR 2025–2026 | 2.1 |
 | Volkswagen Tiguan L Pro / Teramont Pro | — |
 

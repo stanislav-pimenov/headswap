@@ -9,6 +9,8 @@ data class CarSettings(
     val aaDensity: Int = AaDensity.AUTO,
     val fps: FpsSetting = FpsSetting.DEFAULT,
     val musicRate: MusicRate = MusicRate.DEFAULT,
+    /** Потолок битрейта перекодирования, бит/с; 0 = потолок видео-режима. */
+    val maxBitrateBps: Int = 0,
 )
 
 /** Корейские ГУ слабые: на 30 кадрах и 48 кГц рвут USB, советуем 1280×720, 15 кадров, 32 кГц (h139, h218, h260). */
@@ -55,7 +57,8 @@ enum class CarPreset(val titleRes: Int, val settings: CarSettings = CarSettings(
     VW_ID_UNYX(R.string.car_vw_id_unyx),
     VW_LAMANDO_L(R.string.car_vw_lamando_l),
     VW_SAGITAR_2021(R.string.car_vw_sagitar_2021),
-    VW_TROC_2026(R.string.car_vw_troc_2026),
+    /** Desay SV 869A (2GD035869A, T-Roc/T-Cross): экран 800×480, 30 кадров, потолок 2,5 Мбит/с. */
+    VW_TROC_2026(R.string.car_vw_troc_2026, CarSettings(videoMode = VideoMode.R800, fps = FpsSetting.FPS30, maxBitrateBps = 2_500_000)),
     VW_THARU_XR(R.string.car_vw_tharu_xr),
 
     /** VW CNS3: окно CarLife 2240×976 на экране 2240×1260. */
