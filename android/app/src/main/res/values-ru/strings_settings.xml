@@ -216,6 +216,8 @@
     <string name="car_pick_hint">Выберите машину</string>
     <string name="car_will_apply">Будет применено</string>
     <string name="car_label_mode">Режим видео</string>
+    <string name="car_label_bitrate">Потолок битрейта</string>
+    <string name="car_sum_bitrate">%1$d кбит/с</string>
     <string name="car_auto">Авто</string>
     <string name="car_value_keep">Без изменений</string>
     <string name="car_apply">Применить</string>

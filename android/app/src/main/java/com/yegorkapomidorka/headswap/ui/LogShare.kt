@@ -235,6 +235,7 @@ object LogShare {
             appendLine("  частота кадров: ${aa.fpsSetting.name}")
             appendLine("  звук по USB: ${aa.usbAudio}")
             appendLine("  частота музыки: ${aa.musicRate.name}")
+            appendLine("  потолок битрейта: ${if (aa.maxBitrateBps > 0) "${aa.maxBitrateBps / 1000} кбит/с" else "авто"}")
             appendLine("  мой автомобиль: ${aa.carPreset?.let { "${it.name}${if (aa.carSettings == it.settings) "" else ", настройки изменены вручную"}" } ?: "не выбрана"}")
             appendLine("  сертификат: ${aa.certSet}")
             appendLine("  автозапуск сервера ГУ: ${aa.autoServer}")

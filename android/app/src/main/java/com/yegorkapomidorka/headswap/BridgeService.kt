@@ -773,6 +773,7 @@ class BridgeService : Service() {
         val cfg = SessionConfig(
             screenOn, aaPrefs.micVrStatus, aaPrefs.fpsSetting,
             metaMusic = aaPrefs.metaMusic, metaNavi = aaPrefs.metaNavi, naviField6 = aaPrefs.naviField6,
+            maxBitrateBps = aaPrefs.maxBitrateBps,
         )
         MetaRelay.PROGRESS_UNIT = if (aaPrefs.progressSeconds) 1 else 1000
 

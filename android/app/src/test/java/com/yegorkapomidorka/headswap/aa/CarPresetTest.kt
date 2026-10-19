@@ -24,6 +24,10 @@ class CarPresetTest {
         assertEquals(CarSettings(fps = FpsSetting.FPS15, musicRate = MusicRate.HZ32), CarPreset.KIA_K3_2023.settings)
         assertEquals(VideoMode.WIDE, CarPreset.HYUNDAI_IX35_2021.settings.videoMode)
         assertEquals(MusicRate.HZ32, CarPreset.HYUNDAI_IX35_2021.settings.musicRate)
+        assertEquals(
+            CarSettings(videoMode = VideoMode.R800, fps = FpsSetting.FPS30, maxBitrateBps = 2_500_000),
+            CarPreset.VW_TROC_2026.settings,
+        )
     }
 
     @Test

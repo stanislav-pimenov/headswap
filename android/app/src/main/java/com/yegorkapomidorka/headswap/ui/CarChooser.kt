@@ -158,15 +158,19 @@ class CarChooser(val ctx: Context, private val withOther: Boolean, private val o
         const val ITEM_DP = 48
 
         /** Подписи строк «Будет применено», в порядке [settingNames]. */
-        val LABELS = listOf(R.string.car_label_mode, R.string.set_resolution, R.string.set_aa_density, R.string.set_fps, R.string.set_music_rate)
+        val LABELS = listOf(
+            R.string.car_label_mode, R.string.set_resolution, R.string.set_aa_density,
+            R.string.set_fps, R.string.set_music_rate, R.string.car_label_bitrate,
+        )
     }
 }
 
-/** Названия настроек, как в разделах «Видео» и «Звук»: режим, разрешение, масштаб AA, кадры, музыка. */
+/** Названия настроек, как в разделах «Видео» и «Звук»: режим, разрешение, масштаб AA, кадры, музыка, битрейт. */
 private fun Context.settingNames(s: CarSettings): List<String> = listOf(
     getString(if (s.transcode) R.string.set_transcode_title else R.string.set_direct_title),
     getString(s.videoMode.effective(s.transcode).titleRes),
     if (s.aaDensity == AaDensity.AUTO) getString(R.string.car_auto) else getString(R.string.set_sum_density, s.aaDensity),
     getString(s.fps.titleRes),
     getString(s.musicRate.titleRes),
+    if (s.maxBitrateBps > 0) getString(R.string.car_sum_bitrate, s.maxBitrateBps / 1000) else getString(R.string.car_auto),
 )

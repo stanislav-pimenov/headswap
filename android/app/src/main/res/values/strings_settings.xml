@@ -216,6 +216,8 @@
     <string name="car_pick_hint">Choose your car</string>
     <string name="car_will_apply">Will be applied</string>
     <string name="car_label_mode">Video mode</string>
+    <string name="car_label_bitrate">Bitrate ceiling</string>
+    <string name="car_sum_bitrate">%1$d kbit/s</string>
     <string name="car_auto">Auto</string>
     <string name="car_value_keep">Unchanged</string>
     <string name="car_apply">Apply</string>
