@@ -613,7 +613,7 @@ class HeadUnit:
                 if shaped and data:
                     self.shape_wait(len(data))
                 if not data:
-                    if self.killed and chan == self.kill_num:
+                    if self.stop.is_set() or (self.killed and chan == self.kill_num):
                         return
                     self.log(f"{name} socket closed by the bridge")
                     self.peer_gone(chan, "bridge closed the connection")
@@ -655,6 +655,8 @@ class HeadUnit:
 
     def peer_gone(self, chan: int, why: str):
         """Мост закрыл (или порвал) сокет канала. После kill это ожидаемый ответ моста на потерю канала."""
+        if self.stop.is_set():
+            return                                  # сессия уже завершается: это наши же close_all, не ответ моста
         if self.killed:
             if self.closed_others_after is None and self.kill_at is not None:
                 self.closed_others_after = time.monotonic() - self.kill_at
